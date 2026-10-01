@@ -16,7 +16,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@localhost/bic3tab")
-#    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@192.168.70.149/bic3tab")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     AS400_DSN = os.getenv("AS400_DSN", "cli000")
     AS400_UID = os.getenv("AS400_UID", "mobile")
@@ -141,6 +140,9 @@ def bic3tab():
         return redirect(url_for("login"))
     values = {field: "" for field in FIELDS}
     key = session.get("searched_key")
+    if request.method == "GET" and request.args.get("new_search") == "1":
+        session.pop("searched_key", None)
+        key = None
     snapshot_payload = snapshot_signature = None
     found = False
     if request.method == "POST":
@@ -203,8 +205,8 @@ def bic3tab():
                 db.session.add(audit)
                 db.session.commit()
                 flash("BIC3TAB record updated successfully.", "success")
-                found = True
-                snapshot_payload, snapshot_signature = encode_snapshot(new_values)
+                session.pop("searched_key", None)
+                return redirect(url_for("bic3tab", new_search="1"))
             except ValueError as exc:
                 db.session.rollback()
                 flash(str(exc), "error")

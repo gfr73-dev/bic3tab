@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BIC3TAB record · IBM i</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <title>BIC3TAB · DPD</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div class="brand"><span class="mark">B</span><div><p class="eyebrow">CUSTOMER DATA</p><h1>BIC3TAB</h1></div></div>
+      <div class="brand"><span class="dpd-logo">dpd</span><div><p class="eyebrow">CUSTOMER DATA</p><h1>BIC3TAB</h1></div></div>
       <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="quiet" type="submit">Sign out <span aria-hidden="true">↗</span></button></form>
     </header>
     <section class="intro"><div><p class="eyebrow">IBM i · RECORD LOOKUP</p><h2>Find a customer record</h2><p class="muted">Search by the 8 digit customer key, then review or update its associated fields.</p></div><span class="status"><i></i> Connected</span></section>
@@ -21,7 +21,7 @@
       </form>
       <p class="hint">Enter exactly 8 numeric characters. {% if found %}<a href="{{ url_for('bic3tab') }}">Search another record</a>{% endif %}</p>
     </section>
-    {% if found %}
+    {% if found and key %}
     <section class="panel record-panel">
       <div class="section-heading"><div><p class="eyebrow">STEP 02</p><h3>Record details</h3></div><span class="tag editable">Editable fields</span></div>
       <form method="post" action="{{ url_for('bic3tab') }}">
