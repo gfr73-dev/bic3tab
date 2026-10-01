@@ -7,41 +7,38 @@
 <body>
   <main class="shell">
     <header class="topbar">
-      <div class="brand"><span class="dpd-logo">dpd</span><div><p class="eyebrow">CUSTOMER DATA</p><h1>BIC3TAB</h1></div></div>
-      <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="quiet" type="submit">Sign out <span aria-hidden="true">↗</span></button></form>
+      <div class="brand"><span class="dpd-logo">dpd</span><div><h1>BIC3TAB</h1></div></div>
+      <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="quiet" type="submit">Terminar sessão<span aria-hidden="true">↗</span></button></form>
     </header>
-    <section class="intro"><div><p class="eyebrow">IBM i · RECORD LOOKUP</p><h2>Find a customer record</h2><p class="muted">Search by the 8 digit customer key, then review or update its associated fields.</p></div><span class="status"><i></i> Connected</span></section>
+    <section class="intro"><div><p class="eyebrow">IBM i · Pesquisa de registos</p><h2>Pesquisar registos</h2></div><span class="status"><i></i>Ligado</span></section>
     {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
     <section class="panel search-panel">
-      <div class="section-heading"><div><p class="eyebrow">STEP 01</p><h3>Search records</h3></div><span class="tag">Exact match</span></div>
       <form method="post" action="{{ url_for('bic3tab') }}" class="search-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="search">
-        <div class="key-input"><label for="BICCPTCLI">BICCPTCLI <span class="required">Required</span></label><input id="BICCPTCLI" name="BICCPTCLI" value="{{ key or '' }}" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" placeholder="00000000" required {% if found %}readonly aria-readonly="true"{% endif %}></div>
-        <button class="primary" type="submit">Search <span aria-hidden="true">⌕</span></button>
+        <div class="key-input"><label for="BICCPTCLI">Conta Cliente</label><input id="BICCPTCLI" name="BICCPTCLI" value="{{ key or '' }}" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" placeholder="00000000" required {% if found %}readonly aria-readonly="true"{% endif %}></div>
+        <button class="primary" type="submit">Pesquisar<span aria-hidden="true">⌕</span></button>
       </form>
-      <p class="hint">Enter exactly 8 numeric characters. {% if found %}<a href="{{ url_for('bic3tab') }}">Search another record</a>{% endif %}</p>
+      <p class="hint">Colocar os 8 digitos da conta. {% if found %}<a href="{{ url_for('bic3tab') }}">Pesquisar outra conta</a>{% endif %}</p>
     </section>
     {% if found and key %}
     <section class="panel record-panel">
-      <div class="section-heading"><div><p class="eyebrow">STEP 02</p><h3>Record details</h3></div><span class="tag editable">Editable fields</span></div>
+      <div class="section-heading"><div><p class="eyebrow">Passo 2</p><h3>Detalhes do registo</h3></div><span class="tag editable">Campos editáveis</span></div>
       <form method="post" action="{{ url_for('bic3tab') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="update">
         <input type="hidden" name="snapshot" value="{{ snapshot or '' }}"><input type="hidden" name="snapshot_signature" value="{{ snapshot_signature or '' }}">
         <div class="field-grid">
-          <div class="field locked"><label for="key-readonly">BICCPTCLI <span class="lock">🔒 Locked</span></label><input id="key-readonly" value="{{ key }}" readonly aria-readonly="true"><small>Primary key · cannot be changed</small></div>
-          <div class="field"><label for="BICVCLI">BICVCLI <span class="type">DECIMAL(5,0)</span></label><input id="BICVCLI" name="BICVCLI" type="number" min="0" max="99999" step="1" value="{{ values.BICVCLI }}" required></div>
-          <div class="field"><label for="SHEMAIL2DE">SHEMAIL2DE <span class="type">CHAR(1)</span></label><input id="SHEMAIL2DE" name="SHEMAIL2DE" maxlength="1" value="{{ values.SHEMAIL2DE }}"></div>
-          <div class="field"><label for="BICSNIF">BICSNIF <span class="type">CHAR(9)</span></label><input id="BICSNIF" name="BICSNIF" maxlength="9" value="{{ values.BICSNIF }}"></div>
-          <div class="field"><label for="BICSCCC">BICSCCC <span class="type">CHAR(11)</span></label><input id="BICSCCC" name="BICSCCC" maxlength="11" value="{{ values.BICSCCC }}"></div>
-          <div class="field"><label for="BICSPRACA">BICSPRACA <span class="type">CHAR(2)</span></label><input id="BICSPRACA" name="BICSPRACA" maxlength="2" value="{{ values.BICSPRACA }}"></div>
-          <div class="field"><label for="BICSSERV">BICSSERV <span class="type">CHAR(3)</span></label><input id="BICSSERV" name="BICSSERV" maxlength="3" value="{{ values.BICSSERV }}"></div>
-          <div class="field"><label for="BICSPROD">BICSPROD <span class="type">CHAR(3)</span></label><input id="BICSPROD" name="BICSPROD" maxlength="3" value="{{ values.BICSPROD }}"></div>
+          <div class="field locked"><label for="key-readonly">Conta DPD <span class="lock">🔒 só leitura</span></label><input id="key-readonly" value="{{ key }}" readonly aria-readonly="true"></div>
+          <div class="field"><label for="BICSNIF">NIF para associar</label><input id="BICSNIF" name="BICSNIF" maxlength="9" value="{{ values.BICSNIF }}"></div>
+          <div class="field"><label for="BICSCCC">CCC para associar</label><input id="BICSCCC" name="BICSCCC" maxlength="11" value="{{ values.BICSCCC }}"></div>
+          <div class="field"><label for="BICSPRACA">Praça para associar</label><input id="BICSPRACA" name="BICSPRACA" maxlength="2" value="{{ values.BICSPRACA }}"></div>
+          <div class="field"><label for="BICSSERV">Servico para associar</label><input id="BICSSERV" name="BICSSERV" maxlength="3" value="{{ values.BICSSERV }}"></div>
+          <div class="field"><label for="BICSPROD">Produto para associar</label><input id="BICSPROD" name="BICSPROD" maxlength="3" value="{{ values.BICSPROD }}"></div>
         </div>
-        <div class="form-footer"><p class="hint">Changes are written directly to BIC3TAB.</p><button class="primary" type="submit">Save changes <span aria-hidden="true">→</span></button></div>
+        <div class="form-footer"><button class="primary" type="submit">Gravar alterações <span aria-hidden="true">→</span></button></div>
       </form>
     </section>
     {% endif %}
-    <footer>IBM i record maintenance <span>·</span> BIC3TAB</footer>
+    <footer>IBM i - Manutenção do registos<span>·</span> BIC3TAB</footer>
   </main>
 </body>
 </html>

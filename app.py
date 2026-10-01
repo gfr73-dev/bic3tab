@@ -119,7 +119,7 @@ def index():
 def login():
     if request.method == "POST":
         if not valid_csrf():
-            flash("Your form expired. Please try again.", "error")
+            flash("A sua sessão expirou. Por favor, tente novamente.", "error")
         else:
             username = request.form.get("user", "").strip().lower()
             password = request.form.get("password", "")
@@ -152,7 +152,7 @@ def bic3tab():
             entered = request.form.get("BICCPTCLI", "")
             session.pop("searched_key", None)
             if not re.fullmatch(r"\d{8}", entered):
-                flash("BICCPTCLI must contain exactly 8 numeric characters.", "error")
+                flash("Conta deve conter exactamente 8 caracteres numéricos.", "error")
                 session.pop("searched_key", None)
             else:
                 try:
@@ -169,14 +169,14 @@ def bic3tab():
                         for field in FIELDS:
                             values[field] = original[field]
                         snapshot_payload, snapshot_signature = encode_snapshot(original)
-                        flash("Record loaded. Edit the fields and save your changes.", "success")
+                        flash("Registo carregado. Edite os dados e guarde as alterações.", "success")
                     else:
                         session.pop("searched_key", None)
                         key = None
-                        flash("No BIC3TAB record was found for that BICCPTCLI.", "error")
+                        flash("Nenhum registo encontrado para a conta especificada.", "error")
                 except Exception:
-                    app.logger.exception("IBM i record lookup failed")
-                    flash("The record could not be read from the configured IBM i DSN.", "error")
+                    app.logger.exception("IBM i falha ao ler o registo")
+                    flash("O registo não pôde ser lido a partir do DSN configurado.", "error")
         elif request.form.get("action") == "update":
             key = session.get("searched_key")
             as400_updated = False
@@ -187,12 +187,14 @@ def bic3tab():
                 if original["BICCPTCLI"] != key:
                     raise ValueError("The original record snapshot does not match the searched key. Search again.")
                 values = {field: request.form.get(field, "").strip() for field in FIELDS}
+                # BICVCLI is not editable in this form; preserve its searched value.
+                values["BICVCLI"] = original["BICVCLI"]
                 valid_fields(values)
                 new_values = {"BICCPTCLI": key, **values}
                 with as400_connection() as conn:
                     cursor = conn.cursor()
                     assignments = ", ".join(f"{field} = ?" for field in FIELDS)
-                    params = [int(values["BICVCLI"])] + [values[field] for field in FIELDS[1:]] + [key]
+                    params = [int(original["BICVCLI"])] + [values[field] for field in FIELDS[1:]] + [key]
                     cursor.execute(f"UPDATE {AS400_TABLE} SET {assignments} WHERE BICCPTCLI = ?", params)
                     if cursor.rowcount == 0:
                         raise ValueError("No row was updated. The record may have been changed or removed.")
@@ -204,7 +206,7 @@ def bic3tab():
                     setattr(audit, f"{field}_NEW", int(new_values[field]) if field == "BICVCLI" else new_values[field])
                 db.session.add(audit)
                 db.session.commit()
-                flash("BIC3TAB record updated successfully.", "success")
+                flash("Registo na BIC3TAB actualizado com sucesso.", "success")
                 session.pop("searched_key", None)
                 return redirect(url_for("bic3tab", new_search="1"))
             except ValueError as exc:
@@ -232,9 +234,7 @@ def bic3tab():
 
 
 def valid_fields(values):
-    if not re.fullmatch(r"\d{1,5}", values["BICVCLI"]) or int(values["BICVCLI"]) > 99999:
-        raise ValueError("BICVCLI must be a whole number from 0 to 99999.")
-    limits = {"SHEMAIL2DE": 1, "BICSNIF": 9, "BICSCCC": 11, "BICSPRACA": 2, "BICSSERV": 3, "BICSPROD": 3}
+    limits = {"BICSNIF": 9, "BICSCCC": 11, "BICSPRACA": 2, "BICSSERV": 3, "BICSPROD": 3}
     for field, limit in limits.items():
         if len(values[field]) > limit:
             raise ValueError(f"{field} must be at most {limit} characters.")
@@ -243,7 +243,7 @@ def valid_fields(values):
 @app.post("/logout")
 def logout():
     if not valid_csrf():
-        flash("Your form expired. Please try again.", "error")
+        flash("A sua sessão expirou. Por favor, tente novamente.", "error")
         return redirect(url_for("bic3tab"))
     session.clear()
     return redirect(url_for("login"))
@@ -255,4 +255,4 @@ def inject_connection_target():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5888")), debug=False)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5888")), debug=True)
