@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IBM i sign in · BIC3TAB</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="shell narrow">
+    <header class="brand"><span class="mark">B</span><div><p class="eyebrow">CUSTOMER DATA</p><h1>BIC3TAB</h1></div></header>
+    <section class="panel login-panel">
+      <p class="eyebrow">IBM i ACCESS</p><h2>Sign in</h2><p class="muted">Use your IBM i credentials to access the customer record table.</p>
+      {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+      <form method="post" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="user">Email address</label><input id="user" name="user" type="email" autocomplete="username" required autofocus>
+        <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="primary full">Connect to IBM i <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="footnote">Connection target: {{ connection_target }}</p>
+    </section>
+  </main>
+</body>
+</html>
