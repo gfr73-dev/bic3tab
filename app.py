@@ -15,8 +15,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 class Config:
-#    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@localhost/bic3tab")
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@192.168.70.149/bic3tab")
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@localhost/bic3tab")
+#    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@192.168.70.149/bic3tab")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     AS400_DSN = os.getenv("AS400_DSN", "cli000")
     AS400_UID = os.getenv("AS400_UID", "mobile")
@@ -253,4 +253,4 @@ def inject_connection_target():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5000")), debug=False)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5888")), debug=False)
