@@ -14,3 +14,4 @@ python-dotenv==1.0.1
 SQLAlchemy==2.0.51
 typing_extensions==4.16.0
 Werkzeug==3.0.3
+waitress>=3.0,<4.0

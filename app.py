@@ -31,7 +31,10 @@ if app.config["SQLALCHEMY_DATABASE_URI"].startswith("mysql://"):
     app.config["SQLALCHEMY_DATABASE_URI"] = app.config["SQLALCHEMY_DATABASE_URI"].replace("mysql://", "mysql+pymysql://", 1)
 if os.environ.get("FLASK_BEHIND_HTTPS", "0") == "1":
     app.config["SESSION_COOKIE_SECURE"] = True
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
+# Waitress is bound to localhost behind one trusted Nginx reverse proxy.
+# Honor forwarded host, scheme, client IP, and the /bic3tab-flask-app URL prefix.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 db = SQLAlchemy(app)
 
@@ -255,4 +258,4 @@ def inject_connection_target():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5888")), debug=True)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5800")), debug=False)

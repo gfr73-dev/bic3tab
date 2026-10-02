@@ -38,10 +38,12 @@ export AS400_TABLE='OPERACOES.BIC3TAB'
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-python app.py
+python run_waitress.py
 ```
 
-Open http://127.0.0.1:5000. `AS400_TABLE` may be a table name or a two-part `library.table` name. The app's ODBC host, port, database, and driver settings come from the existing DSN configuration. The machine running Flask needs a compatible IBM i ODBC driver and an installed DSN with access to the table.
+For a Windows service, install a service wrapper such as NSSM and configure it to launch the virtual-environment Python executable with `run_waitress.py` as its argument. Set the service's working directory to this project folder. The runner loads a local `.env` file before importing the Flask app; copy `.env.example` to `.env`, fill in its values, and restrict access to that file to the service account. The Flask app honors the forwarded Nginx prefix automatically; set the Nginx `X-Forwarded-Prefix` header to `/bic3tab-flask-app`. NSSM's `Application` should be `.venv\Scripts\python.exe`, and its arguments should be `run_waitress.py`. Start it from an Administrator terminal with `nssm start BIC3TAB` after installing/configuring the service.
+
+Waitress listens on `127.0.0.1:5800` by default. For access from other computers, set `BIC3TAB_HOST=0.0.0.0` in `.env`, allow TCP port 5800 in Windows Firewall for the required network profile, and open `http://<server-name-or-ip>:5800`. Configure `cli000` as a 64-bit System DSN, because a Windows service may run under an account that cannot see an interactive user's User DSN. To use Flask's development server instead, run `python app.py` (port 5800). `AS400_TABLE` may be a table name or a two-part `library.table` name. The app's ODBC host, port, database, and driver settings come from the existing DSN configuration. The machine running Flask needs a compatible IBM i ODBC driver and an installed DSN with access to the table.
 
 For HTTPS behind a trusted reverse proxy, set `FLASK_BEHIND_HTTPS=1`. Do not expose Flask's development server directly to a network; use a production WSGI server and terminate TLS at a trusted proxy. Set a persistent, secret `FLASK_SECRET_KEY`, since signed form snapshots and sessions depend on it.
 
