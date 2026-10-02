@@ -15,7 +15,9 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "mysql://root:@localhost/bic3tab")
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL", "mysql://root:@localhost/bic3tab"
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     AS400_DSN = os.getenv("AS400_DSN", "cli000")
     AS400_UID = os.getenv("AS400_UID", "mobile")
@@ -28,7 +30,9 @@ app.config.from_object(Config)
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 if app.config["SQLALCHEMY_DATABASE_URI"].startswith("mysql://"):
-    app.config["SQLALCHEMY_DATABASE_URI"] = app.config["SQLALCHEMY_DATABASE_URI"].replace("mysql://", "mysql+pymysql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = app.config[
+        "SQLALCHEMY_DATABASE_URI"
+    ].replace("mysql://", "mysql+pymysql://", 1)
 if os.environ.get("FLASK_BEHIND_HTTPS", "0") == "1":
     app.config["SESSION_COOKIE_SECURE"] = True
 
@@ -51,7 +55,12 @@ class ChangeLog(db.Model):
     __tablename__ = "change_log"
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
     username = db.Column(db.String(320), nullable=False, index=True)
-    changed_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
+    changed_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
     BICCPTCLI_OLD = db.Column(db.String(8), nullable=False)
     BICVCLI_OLD = db.Column(db.Numeric(5, 0), nullable=False)
     SHEMAIL2DE_OLD = db.Column(db.String(1), nullable=True)
@@ -70,7 +79,15 @@ class ChangeLog(db.Model):
     BICSPROD_NEW = db.Column(db.String(3), nullable=True)
 
 
-FIELDS = ("BICVCLI", "SHEMAIL2DE", "BICSNIF", "BICSCCC", "BICSPRACA", "BICSSERV", "BICSPROD")
+FIELDS = (
+    "BICVCLI",
+    "SHEMAIL2DE",
+    "BICSNIF",
+    "BICSCCC",
+    "BICSPRACA",
+    "BICSSERV",
+    "BICSPROD",
+)
 ALL_FIELDS = ("BICCPTCLI",) + FIELDS
 TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#@]*(\.[A-Za-z_][A-Za-z0-9_$#@]*)?$")
 AS400_TABLE = app.config["AS400_BIC_TABLE"].strip()
@@ -92,24 +109,34 @@ def csrf_token():
 
 
 def valid_csrf():
-    return secrets.compare_digest(session.get("csrf_token", ""), request.form.get("csrf_token", ""))
+    return secrets.compare_digest(
+        session.get("csrf_token", ""), request.form.get("csrf_token", "")
+    )
 
 
 def encode_snapshot(values):
     packed = json.dumps(values, separators=(",", ":"), ensure_ascii=True).encode()
     payload = base64.urlsafe_b64encode(packed).decode().rstrip("=")
-    signature = hmac.new(app.config["SECRET_KEY"].encode(), payload.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        app.config["SECRET_KEY"].encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
     return payload, signature
 
 
 def decode_snapshot(payload, signature):
-    expected = hmac.new(app.config["SECRET_KEY"].encode(), payload.encode(), hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        app.config["SECRET_KEY"].encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
     if not hmac.compare_digest(expected, signature):
-        raise ValueError("The original record snapshot is invalid. Search for the record again.")
+        raise ValueError(
+            "The original record snapshot is invalid. Search for the record again."
+        )
     raw = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
     values = json.loads(raw)
     if set(values) != set(ALL_FIELDS):
-        raise ValueError("The original record snapshot is invalid. Search for the record again.")
+        raise ValueError(
+            "The original record snapshot is invalid. Search for the record again."
+        )
     return values
 
 
@@ -161,35 +188,65 @@ def bic3tab():
                 try:
                     with as400_connection() as conn:
                         cursor = conn.cursor()
-                        cursor.execute(f"SELECT {', '.join(ALL_FIELDS)} FROM {AS400_TABLE} WHERE BICCPTCLI = ?", entered)
+                        cursor.execute(
+                            f"SELECT {', '.join(ALL_FIELDS)} FROM {AS400_TABLE} WHERE BICCPTCLI = ?",
+                            entered,
+                        )
                         row = cursor.fetchone()
-                        names = [column[0].upper() for column in cursor.description] if cursor.description else []
+                        names = (
+                            [column[0].upper() for column in cursor.description]
+                            if cursor.description
+                            else []
+                        )
                         original = dict(zip(names, row)) if row else None
                     if original:
-                        original = {field: ("" if original[field] is None else str(original[field]).strip()) for field in ALL_FIELDS}
+                        original = {
+                            field: (
+                                ""
+                                if original[field] is None
+                                else str(original[field]).strip()
+                            )
+                            for field in ALL_FIELDS
+                        }
                         key, found = entered, True
                         session["searched_key"] = entered
                         for field in FIELDS:
                             values[field] = original[field]
                         snapshot_payload, snapshot_signature = encode_snapshot(original)
-                        flash("Registo carregado. Edite os dados e guarde as alterações.", "success")
+                        flash(
+                            "Registo carregado. Edite os dados e guarde as alterações.",
+                            "success",
+                        )
                     else:
                         session.pop("searched_key", None)
                         key = None
-                        flash("Nenhum registo encontrado para a conta especificada.", "error")
+                        flash(
+                            "Nenhum registo encontrado para a conta especificada.",
+                            "error",
+                        )
                 except Exception:
                     app.logger.exception("IBM i falha ao ler o registo")
-                    flash("O registo não pôde ser lido a partir do DSN configurado.", "error")
+                    flash(
+                        "O registo não pôde ser lido a partir do DSN configurado.",
+                        "error",
+                    )
         elif request.form.get("action") == "update":
             key = session.get("searched_key")
             as400_updated = False
             try:
                 if not key:
                     raise ValueError("Search for a record before saving.")
-                original = decode_snapshot(request.form.get("snapshot", ""), request.form.get("snapshot_signature", ""))
+                original = decode_snapshot(
+                    request.form.get("snapshot", ""),
+                    request.form.get("snapshot_signature", ""),
+                )
                 if original["BICCPTCLI"] != key:
-                    raise ValueError("The original record snapshot does not match the searched key. Search again.")
-                values = {field: request.form.get(field, "").strip() for field in FIELDS}
+                    raise ValueError(
+                        "The original record snapshot does not match the searched key. Search again."
+                    )
+                values = {
+                    field: request.form.get(field, "").strip() for field in FIELDS
+                }
                 # BICVCLI is not editable in this form; preserve its searched value.
                 values["BICVCLI"] = original["BICVCLI"]
                 valid_fields(values)
@@ -197,16 +254,40 @@ def bic3tab():
                 with as400_connection() as conn:
                     cursor = conn.cursor()
                     assignments = ", ".join(f"{field} = ?" for field in FIELDS)
-                    params = [int(original["BICVCLI"])] + [values[field] for field in FIELDS[1:]] + [key]
-                    cursor.execute(f"UPDATE {AS400_TABLE} SET {assignments} WHERE BICCPTCLI = ?", params)
+                    params = (
+                        [int(original["BICVCLI"])]
+                        + [values[field] for field in FIELDS[1:]]
+                        + [key]
+                    )
+                    cursor.execute(
+                        f"UPDATE {AS400_TABLE} SET {assignments} WHERE BICCPTCLI = ?",
+                        params,
+                    )
                     if cursor.rowcount == 0:
-                        raise ValueError("No row was updated. The record may have been changed or removed.")
+                        raise ValueError(
+                            "No row was updated. The record may have been changed or removed."
+                        )
                     conn.commit()
                     as400_updated = True
-                audit = ChangeLog(username=session["username"], changed_at=datetime.now(timezone.utc).replace(tzinfo=None))
+                audit = ChangeLog(
+                    username=session["username"],
+                    changed_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                )
                 for field in ALL_FIELDS:
-                    setattr(audit, f"{field}_OLD", int(original[field]) if field == "BICVCLI" else original[field])
-                    setattr(audit, f"{field}_NEW", int(new_values[field]) if field == "BICVCLI" else new_values[field])
+                    setattr(
+                        audit,
+                        f"{field}_OLD",
+                        int(original[field]) if field == "BICVCLI" else original[field],
+                    )
+                    setattr(
+                        audit,
+                        f"{field}_NEW",
+                        (
+                            int(new_values[field])
+                            if field == "BICVCLI"
+                            else new_values[field]
+                        ),
+                    )
                 db.session.add(audit)
                 db.session.commit()
                 flash("Registo na BIC3TAB actualizado com sucesso.", "success")
@@ -223,17 +304,30 @@ def bic3tab():
                 db.session.rollback()
                 app.logger.exception("IBM i record update or MySQL audit insert failed")
                 if as400_updated:
-                    flash("IBM i was updated, but the audit entry could not be saved in MySQL. Contact your administrator.", "error")
+                    flash(
+                        "IBM i was updated, but the audit entry could not be saved in MySQL. Contact your administrator.",
+                        "error",
+                    )
                 else:
-                    flash("The record could not be updated. Check the values and connection settings.", "error")
+                    flash(
+                        "The record could not be updated. Check the values and connection settings.",
+                        "error",
+                    )
                 found = bool(key)
                 if key:
                     snapshot_payload = request.form.get("snapshot")
                     snapshot_signature = request.form.get("snapshot_signature")
     else:
         key = session.get("searched_key")
-    return render_template("bic3tab.html", csrf_token=csrf_token(), values=values, key=key, found=found,
-                           snapshot=snapshot_payload, snapshot_signature=snapshot_signature)
+    return render_template(
+        "bic3tab.html",
+        csrf_token=csrf_token(),
+        values=values,
+        key=key,
+        found=found,
+        snapshot=snapshot_payload,
+        snapshot_signature=snapshot_signature,
+    )
 
 
 def valid_fields(values):
@@ -258,4 +352,4 @@ def inject_connection_target():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5800")), debug=False)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5800")), debug=True)

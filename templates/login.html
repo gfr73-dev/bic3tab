@@ -1,22 +1,53 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in · BIC3TAB</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-  <main class="shell narrow">
-    <header class="brand"><span class="dpd-logo">dpd</span><div><p class="eyebrow">Dados de Cliente</p><h1>BIC3TAB</h1></div></header>
-    <section class="panel login-panel">
-      <p class="eyebrow">Manutenção de registos na BIC3TAB</p><h2>Iniciar sessão</h2>
-      {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
-      <form method="post" autocomplete="on">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <label for="user">Email DPD</label><input id="user" name="user" type="email" autocomplete="username" required autofocus>
-        <label for="password">Palavra-passe</label><input id="password" name="password" type="password" autocomplete="current-password" required>
-        <button type="submit" class="primary full">Iniciar sessão<span aria-hidden="true">→</span></button>
-      </form>
-    </section>
-  </main>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Iniciar Sessão · BIC3TAB</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  <body>
+    <main class="shell narrow">
+      <header class="brand">
+        <div class="card-header d-flex align-items-center gap-4"><img src="./static/dpd_logo_50.png" alt="Logo" style="height: 48px; width: auto;"></div>
+        <div>
+          <p class="eyebrow">Dados de Cliente</p>
+          <h1>BIC3TAB</h1>
+        </div>
+      </header>
+      <section class="panel login-panel">
+        <p class="eyebrow">Manutenção de registos na BIC3TAB</p>
+        <h2>Iniciar sessão</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}{% for
+        category, message in messages %}
+        <div class="notice {{ category }}">{{ message }}</div>
+        {% endfor %}{% endwith %}
+        <form method="post" autocomplete="on">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <label for="user">Email DPD</label
+          ><input
+            id="user"
+            name="user"
+            type="email"
+            autocomplete="username"
+            required
+            autofocus
+          />
+          <label for="password">Palavra-passe</label
+          ><input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+          <button type="submit" class="primary full">
+            Iniciar sessão<span aria-hidden="true">→</span>
+          </button>
+        </form>
+      </section>
+    </main>
+  </body>
 </html>
