@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Adicionar utilizador · BIC3TAB</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <main class="shell narrow">
+      <header class="topbar">
+        <a class="brand brand-link" href="{{ url_for('bic3tab') }}">
+          <img src="{{ url_for('static', filename='dpd_logo_50.png') }}" alt="DPD" style="height: 48px; width: auto" />
+        </a>
+        <a class="quiet" href="{{ url_for('bic3tab') }}">Voltar</a>
+      </header>
+      <section class="panel login-panel">
+        <p class="eyebrow">ADMINISTRAÇÃO</p>
+        <h2>Adicionar utilizador</h2>
+        <p class="muted">Criar uma conta para dar acesso à aplicação BIC3TAB.</p>
+        {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}
+        <div class="notice {{ category }}">{{ message }}</div>
+        {% endfor %}{% endwith %}
+        <form method="post" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <label for="name">Nome</label>
+          <input id="name" name="name" maxlength="255" required autofocus />
+          <label for="username">Email DPD</label>
+          <input id="username" name="username" type="email" maxlength="320" autocomplete="off" required />
+          <label for="password">Palavra-passe</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" required />
+          <label for="password_confirmation">Confirmar palavra-passe</label>
+          <input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required />
+          <button type="submit" class="primary full">Criar utilizador <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

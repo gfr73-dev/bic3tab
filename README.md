@@ -2,7 +2,7 @@
 
 Flask application with two separate connections:
 
-- Local MySQL authenticates users from the `users` table. There is no public registration or password recovery.
+- Local MySQL authenticates users from the `users` table. There is no public registration or password recovery. Users with `isAdmin=1` can create standard user accounts from the application.
 - IBM i reads and updates use the existing ODBC DSN and configured service credentials.
 
 After a successful lookup, BICCPTCLI is displayed read-only and is never part of the IBM i `SET` clause. Successful IBM i updates are recorded in the MySQL `change_log` table with the original lookup values, saved values, the logged-in email, and a UTC timestamp.
@@ -16,7 +16,7 @@ mysql -u root -p < sql/001_create_database.sql
 mysql -u root -p < sql/002_create_tables.sql
 ```
 
-The `password_hash` field stores Werkzeug password hashes, never plaintext passwords. Add users through the admin CLI (there is no registration page):
+The `password_hash` field stores Werkzeug password hashes, never plaintext passwords. Admins can create standard accounts from the **Adicionar utilizador** option in the application. The `isAdmin` field defaults to `0`, and accounts created in the application cannot grant themselves admin access. The CLI is also available for initial account setup:
 
 ```sh
 python create_user.py
@@ -49,7 +49,9 @@ For HTTPS behind a trusted reverse proxy, set `FLASK_BEHIND_HTTPS=1`. Do not exp
 
 ## Tables
 
-`users`: `id`, `name`, `username` (unique email), `password_hash`.
+`users`: `id`, `name`, `username` (unique email), `password_hash`, `isAdmin` (boolean admin flag, default `0`). For an existing database, add the field once if it is missing: `ALTER TABLE users ADD COLUMN isAdmin TINYINT(1) NOT NULL DEFAULT 0;`. The table creation script includes the field for new installations.
+
+To grant admin access to an existing account, run `UPDATE users SET isAdmin = 1 WHERE username = 'admin@example.com';` and replace the email with that account's username.
 
 `change_log`: `username`, `changed_at`, and the requested `_OLD` and `_NEW` columns for BICCPTCLI and its seven associated fields. `id` is an auto-incrementing audit-row key. BICVCLI is stored as `DECIMAL(5,0)`; character fields use their declared widths.
 

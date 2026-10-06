@@ -8,9 +8,9 @@ import secrets
 from datetime import datetime, timezone
 
 import pyodbc
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 
@@ -49,6 +49,7 @@ class User(db.Model):
     name = db.Column(db.String(255), nullable=False)
     username = db.Column(db.String(320), nullable=False, unique=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    isAdmin = db.Column("isAdmin", db.Boolean, nullable=False, default=False)
 
 
 class ChangeLog(db.Model):
@@ -346,9 +347,61 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/admin/users/new", methods=["GET", "POST"])
+def add_user():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    # Recheck the database on each request so removed admin access takes effect
+    # even when the user already has an active session.
+    admin = db.session.get(User, session["user_id"])
+    if not admin or not admin.isAdmin:
+        abort(403)
+
+    if request.method == "POST":
+        if not valid_csrf():
+            flash("A sua sessão expirou. Por favor, tente novamente.", "error")
+        else:
+            name = request.form.get("name", "").strip()
+            username = request.form.get("username", "").strip().lower()
+            password = request.form.get("password", "")
+            confirmation = request.form.get("password_confirmation", "")
+            if not name or not username or not password:
+                flash("Nome, email e palavra-passe são obrigatórios.", "error")
+            elif len(name) > 255 or len(username) > 320:
+                flash("O nome ou email é demasiado longo.", "error")
+            elif not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", username):
+                flash("Introduza um endereço de email válido.", "error")
+            elif password != confirmation:
+                flash("As palavras-passe não coincidem.", "error")
+            elif User.query.filter_by(username=username).first():
+                flash("Já existe uma conta com esse email.", "error")
+            else:
+                user = User(
+                    name=name,
+                    username=username,
+                    password_hash=generate_password_hash(password),
+                    isAdmin=False,
+                )
+                db.session.add(user)
+                try:
+                    db.session.commit()
+                    flash(f"Utilizador {username} criado com sucesso.", "success")
+                    return redirect(url_for("add_user"))
+                except Exception:
+                    db.session.rollback()
+                    app.logger.exception("Admin user creation failed")
+                    flash("Não foi possível criar o utilizador. O email poderá já estar em uso.", "error")
+    return render_template("add_user.html", csrf_token=csrf_token())
+
+
 @app.context_processor
 def inject_connection_target():
-    return {"connection_target": app.config["AS400_DSN"]}
+    current_user = db.session.get(User, session["user_id"]) if session.get("user_id") else None
+    return {
+        "connection_target": app.config["AS400_DSN"],
+        "is_admin": bool(current_user and current_user.isAdmin),
+    }
 
 
 if __name__ == "__main__":

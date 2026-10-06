@@ -21,15 +21,14 @@
             />
           </div>
         </div>
-        <form method="post" action="{{ url_for('logout') }}">
-          <input
-            type="hidden"
-            name="csrf_token"
-            value="{{ csrf_token }}"
-          /><button class="quiet" type="submit">
-            Terminar sessão<span aria-hidden="true">↗</span>
-          </button>
-        </form>
+        <div class="top-actions">
+          {% if is_admin %}<a class="quiet" href="{{ url_for('add_user') }}">Adicionar utilizador</a>{% endif %}
+          <form method="post" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="quiet" type="submit">
+              Terminar sessão<span aria-hidden="true">↗</span>
+            </button>
+          </form>
+        </div>
       </header>
       <section class="intro">
         <div>
