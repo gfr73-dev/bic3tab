@@ -1,0 +1,77 @@
+I need a flask app to allow users to search an AS400 table, and if the query returns results, they can add aditional info and write it back on said table
+
+1. AS400 IP: 192.168.239.26
+
+2. login form with user and password to authenticate with AS400
+
+3. after successful login, go to BIC3TAB form
+
+4. these are the fields in the table, which must be part of the BIC3TAB form
+	BICCPTCLI CHAR(8)
+	BICVCLI DECIMAL(5,0)
+	SHEMAIL2DE CHAR(1)
+	BICSNIF CHAR(9)
+	BICSCCC CHAR(11)
+	BICSPRACA CHAR(2)
+	BICSSERV CHAR(3)
+	BICSPROD CHAR(3)
+	
+5. the objective is for the user to insert the biccptli value on the form (must be 8char,and only numeric), and then get all the other data from the table related to the above fields
+
+6. after successful data retrieve, user can put anything on the other fields and then submitt those values, updating the data on the table.
+NO CHANGE CAN BE MADE TO THE biccptli value, meaning that BICCPTCLI must be "read-only" after search is made with success. 
+
+7. make the forms "DPD style"
+
+8. give the entire solution on a zip file
+
+++++++++++++++++++++++++++
+
+NEW PROMPT
+
+I'm having some internal issues with login, so the best way is to adopt another strategy which is:
+
+- login is based on a local mysql db and the connection to AS400 based on an existing DSN
+
+This is what i already have working on a nother app, and I have already changed the names for the current app:
+
+class Config:
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL",
+        "mysql://root:@localhost/bic3tab"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    AS400_DSN = os.getenv("AS400_DSN", "cli000")
+    AS400_UID = os.getenv("AS400_UID", "mobile")
+    AS400_PWD = os.getenv("AS400_PWD", "mobile")
+    AS400_BIC_TABLE = os.getenv("AS400_TABLE", "OPERACOES.BIC3TAB")
+
+1. need sql scripts to
+	. create the BIC3TAB db
+	. create a table for the users: id, name, username (email address), and password [I will populate the table manually, no need for regiter form, recover password, etc]
+	. create a table to log all the changes, and who made them, with these fields:
+username (email assosiated with the user)
+date/time, 
+fields that came form the inital query stored on(
+									BICCPTCLI_OLD,
+									BICVCLI_OLD,
+									SHEMAIL2DE_OLD,
+									BICSNIF_OLD,
+									BICSCCC_OLD,
+									BICSPRACA_OLD,
+									BICSSERV_OLD,
+									BICSPROD_OLD
+									)
+fields that where updated on submit stored on(
+									BICCPTCLI_NEW,
+									BICVCLI_NEW,
+									SHEMAIL2DE_NEW,
+									BICSNIF_NEW,
+									BICSCCC_NEW,
+									BICSPRACA_NEW,
+									BICSSERV_NEW,
+									BICSPROD_NEW
+									)
+									
+									
