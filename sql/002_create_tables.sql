@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(320) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     isAdmin TINYINT(1) NOT NULL DEFAULT 0,
+    isActive TINYINT(1) NOT NULL DEFAULT 1,
+    password_reset_token_hash CHAR(64) NULL,
+    password_reset_expires_at DATETIME NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_users_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

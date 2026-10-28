@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin menu · BIC3TAB</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand brand-link" href="{{ url_for('bic3tab') }}"><img src="{{ url_for('static', filename='dpd_logo_50.png') }}" alt="DPD" style="height:48px;width:auto" /></a>
+        <div class="top-actions"><a class="quiet" href="{{ url_for('bic3tab') }}">Voltar à pesquisa</a></div>
+      </header>
+      <section class="intro"><div><p class="eyebrow">ADMINISTRAÇÃO</p><h2>Admin menu</h2></div></section>
+      {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+      <section class="panel" style="margin-bottom:18px">
+        <div class="section-heading"><div><p class="eyebrow">NOVO ACESSO</p><h3>Criar utilizador</h3></div></div>
+        <form method="post" action="{{ url_for('add_user') }}" class="admin-create-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <div class="field-grid">
+            <div class="field"><label for="name">Nome</label><input id="name" name="name" maxlength="255" required /></div>
+            <div class="field"><label for="username">Email DPD</label><input id="username" name="username" type="email" maxlength="320" required /></div>
+            <div class="field"><label for="isAdmin">Permissão</label><select id="isAdmin" name="isAdmin"><option value="0">Utilizador normal</option><option value="1">Administrador</option></select></div>
+            <div class="field"><label for="isActive">Estado inicial</label><select id="isActive" name="isActive"><option value="1" selected>Ativa</option><option value="0">Inativa</option></select></div>
+          </div>
+          <div class="form-footer"><p class="hint">O utilizador receberá uma ligação única, válida por 2 horas, para definir a palavra-passe.</p><button class="primary" type="submit">Criar utilizador <span aria-hidden="true">→</span></button></div>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="section-heading"><div><p class="eyebrow">CONTAS</p><h3>Utilizadores ({{ users|length }})</h3></div></div>
+        <div class="table-wrap"><table class="results admin-users-table"><thead><tr><th>Nome</th><th>Email</th><th>Administrador</th><th>Estado</th><th>Ações</th></tr></thead>
+          <tbody>{% for user in users %}<tr>
+            <td>{{ user.name }}</td><td>{{ user.username }}</td><td>{{ 'Sim' if user.isAdmin else 'Não' }}</td><td>{{ 'Ativa' if user.isActive else 'Inativa' }}</td>
+            <td class="actions">
+              <form method="post" action="{{ url_for('toggle_user_active', user_id=user.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="quiet" type="submit" {% if user.id == session.get('user_id') %}disabled title="Não pode alterar o estado da sua própria conta"{% endif %}>{{ 'Desativar' if user.isActive else 'Ativar' }}</button></form>
+              <form method="post" action="{{ url_for('request_user_password_change', user_id=user.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="quiet" type="submit">Pedir alteração de palavra-passe</button></form>
+            </td>
+          </tr>{% else %}<tr><td colspan="5" class="empty">Ainda não existem utilizadores.</td></tr>{% endfor %}</tbody>
+        </table></div>
+      </section>
+      <footer>Gestão de acessos<span>·</span>BIC3TAB</footer>
+    </main>
+  </body>
+</html>

@@ -5,8 +5,11 @@ import json
 import os
 import re
 import secrets
+import smtplib
+from email.message import EmailMessage
+from hashlib import sha256
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pyodbc
 from dotenv import load_dotenv
@@ -49,6 +52,14 @@ class Config:
     AS400_UID = os.getenv("AS400_UID", "mobile")
     AS400_PWD = os.getenv("AS400_PWD", "mobile")
     AS400_BIC_TABLE = os.getenv("AS400_TABLE", "OPERACOES.BIC3TAB")
+    SMTP_ENABLED = os.getenv("SMTP_ENABLED", "false").lower() == "true"
+    SMTP_HOST = os.getenv("SMTP_HOST", "dpd.relay.tmes.trendmicro.eu")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "25"))
+    SMTP_TIMEOUT_SECONDS = int(os.getenv("SMTP_TIMEOUT_SECONDS", "10"))
+    SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "false").lower() == "true"
+    SMTP_USER = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    MAIL_FROM = os.getenv("MAIL_FROM", "mail.dpdlrsls081@dpd.pt")
 
 
 app = Flask(__name__)
@@ -72,6 +83,9 @@ class User(db.Model):
     username = db.Column(db.String(320), nullable=False, unique=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     isAdmin = db.Column("isAdmin", db.Boolean, nullable=False, default=False)
+    isActive = db.Column("isActive", db.Boolean, nullable=False, default=True, server_default="1")
+    password_reset_token_hash = db.Column(db.String(64), nullable=True)
+    password_reset_expires_at = db.Column(db.DateTime, nullable=True)
 
 
 class ChangeLog(db.Model):
@@ -177,7 +191,7 @@ def login():
             username = request.form.get("user", "").strip().lower()
             password = request.form.get("password", "")
             user = User.query.filter_by(username=username).first() if username else None
-            if user and check_password_hash(user.password_hash, password):
+            if user and user.isActive and check_password_hash(user.password_hash, password):
                 session.clear()
                 session["user_id"] = user.id
                 session["username"] = user.username
@@ -185,6 +199,112 @@ def login():
                 return redirect(url_for("bic3tab"))
             flash("Invalid email address or password.", "error")
     return render_template("login.html", csrf_token=csrf_token())
+
+
+@app.before_request
+def require_active_session():
+    user_id = session.get("user_id")
+    if user_id and request.endpoint != "static":
+        current_user = db.session.get(User, user_id)
+        if not current_user or not current_user.isActive:
+            session.clear()
+            if request.endpoint != "login":
+                return redirect(url_for("login"))
+
+
+def admin_user():
+    current_user = db.session.get(User, session["user_id"]) if session.get("user_id") else None
+    if not current_user:
+        return None
+    if not current_user.isAdmin or not current_user.isActive:
+        abort(403)
+    return current_user
+
+
+def send_email(recipient, subject, body, bcc=None):
+    if not app.config["SMTP_ENABLED"]:
+        app.logger.warning("SMTP is disabled; email to %s was not sent", recipient)
+        return False
+    message = EmailMessage()
+    message["From"] = app.config["MAIL_FROM"]
+    message["To"] = recipient
+    if bcc:
+        message["Bcc"] = bcc
+    message["Subject"] = subject
+    message.set_content(body)
+    with smtplib.SMTP(
+        app.config["SMTP_HOST"],
+        app.config["SMTP_PORT"],
+        timeout=app.config["SMTP_TIMEOUT_SECONDS"],
+    ) as smtp:
+        if app.config["SMTP_USE_TLS"]:
+            smtp.starttls()
+        if app.config["SMTP_USER"]:
+            smtp.login(app.config["SMTP_USER"], app.config["SMTP_PASSWORD"])
+        smtp.send_message(message)
+    return True
+
+
+def issue_password_reset(user, action, bcc=None):
+    raw_token = secrets.token_urlsafe(32)
+    user.password_reset_token_hash = sha256(raw_token.encode("utf-8")).hexdigest()
+    user.password_reset_expires_at = (
+        datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=2)
+    )
+    db.session.commit()
+    reset_url = url_for("reset_password", token=raw_token, _external=True)
+    try:
+        sent = send_email(
+            user.username,
+            f"BIC3TAB - {action} da palavra-passe",
+            f"Olá {user.name},\n\n"
+            f"Foi solicitada a definição/alteração da sua palavra-passe BIC3TAB. "
+            f"Use esta ligação no prazo de 2 horas:\n{reset_url}\n\n"
+            "Se não solicitou esta alteração, ignore esta mensagem.",
+            bcc=bcc,
+        )
+    except Exception:
+        app.logger.exception("Failed to send BIC3TAB password setup email to user %s", user.id)
+        sent = False
+    if not sent:
+        user.password_reset_token_hash = None
+        user.password_reset_expires_at = None
+        db.session.commit()
+    return sent
+
+
+@app.route("/password-reset/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    token_hash = sha256(token.encode("utf-8")).hexdigest()
+    user = User.query.filter_by(password_reset_token_hash=token_hash).first()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if (
+        not user
+        or not user.password_reset_expires_at
+        or user.password_reset_expires_at < now
+    ):
+        abort(
+            400,
+            "Esta ligação expirou ou já foi utilizada. Peça uma nova ligação ao administrador.",
+        )
+    if request.method == "POST":
+        if not valid_csrf():
+            flash("A sua sessão expirou. Por favor, tente novamente.", "error")
+        else:
+            password = request.form.get("password", "")
+            confirmation = request.form.get("password_confirmation", "")
+            if len(password) < 12:
+                flash("A palavra-passe deve ter pelo menos 12 caracteres.", "error")
+            elif password != confirmation:
+                flash("As palavras-passe não coincidem.", "error")
+            else:
+                user.password_hash = generate_password_hash(password)
+                user.password_reset_token_hash = None
+                user.password_reset_expires_at = None
+                db.session.commit()
+                flash("Palavra-passe definida com sucesso. Inicie sessão.", "success")
+                return redirect(url_for("login"))
+    return render_template("reset_password.html", csrf_token=csrf_token())
 
 
 DISPLAY_FIELDS = ("BICCPTCLI", "BICACT", "BICSNIF", "BICSCCC", "BICSPRACA", "BICSSERV", "BICSPROD", "SERVICE_RC")
@@ -325,52 +445,94 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.get("/admin")
+def admin_menu():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    admin_user()
+    users = User.query.order_by(User.name, User.username).all()
+    return render_template("admin_users.html", users=users, csrf_token=csrf_token())
+
+
 @app.route("/admin/users/new", methods=["GET", "POST"])
 def add_user():
     if not session.get("user_id"):
         return redirect(url_for("login"))
-
-    # Recheck the database on each request so removed admin access takes effect
-    # even when the user already has an active session.
-    admin = db.session.get(User, session["user_id"])
-    if not admin or not admin.isAdmin:
-        abort(403)
-
+    admin_user()
     if request.method == "POST":
         if not valid_csrf():
             flash("A sua sessão expirou. Por favor, tente novamente.", "error")
         else:
             name = request.form.get("name", "").strip()
             username = request.form.get("username", "").strip().lower()
-            password = request.form.get("password", "")
-            confirmation = request.form.get("password_confirmation", "")
-            if not name or not username or not password:
-                flash("Nome, email e palavra-passe são obrigatórios.", "error")
+            if not name or not username:
+                flash("Nome e email são obrigatórios.", "error")
             elif len(name) > 255 or len(username) > 320:
                 flash("O nome ou email é demasiado longo.", "error")
             elif not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", username):
                 flash("Introduza um endereço de email válido.", "error")
-            elif password != confirmation:
-                flash("As palavras-passe não coincidem.", "error")
             elif User.query.filter_by(username=username).first():
                 flash("Já existe uma conta com esse email.", "error")
             else:
                 user = User(
                     name=name,
                     username=username,
-                    password_hash=generate_password_hash(password),
-                    isAdmin=False,
+                    password_hash=generate_password_hash(secrets.token_urlsafe(32)),
+                    isAdmin=request.form.get("isAdmin") == "1",
+                    isActive=request.form.get("isActive") == "1",
                 )
                 db.session.add(user)
                 try:
                     db.session.commit()
-                    flash(f"Utilizador {username} criado com sucesso.", "success")
-                    return redirect(url_for("add_user"))
+                    if issue_password_reset(user, "definição", bcc=admin_user().username):
+                        flash(f"Utilizador {username} criado e email enviado.", "success")
+                    else:
+                        flash(
+                            f"Utilizador {username} criado, mas o email não foi enviado. "
+                            "Use 'Pedir alteração de palavra-passe' para tentar novamente.",
+                            "error",
+                        )
+                    return redirect(url_for("admin_menu"))
                 except Exception:
                     db.session.rollback()
                     app.logger.exception("Admin user creation failed")
                     flash("Não foi possível criar o utilizador. O email poderá já estar em uso.", "error")
     return render_template("add_user.html", csrf_token=csrf_token())
+
+
+@app.post("/admin/users/<int:user_id>/active")
+def toggle_user_active(user_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    admin = admin_user()
+    if not valid_csrf():
+        flash("A sua sessão expirou. Por favor, tente novamente.", "error")
+        return redirect(url_for("admin_menu"))
+    user = User.query.get_or_404(user_id)
+    if user.id == admin.id:
+        flash("Não pode alterar o estado da sua própria conta.", "error")
+    else:
+        user.isActive = not user.isActive
+        db.session.commit()
+        state = "ativada" if user.isActive else "desativada"
+        flash(f"Conta de {user.username} {state}.", "success")
+    return redirect(url_for("admin_menu"))
+
+
+@app.post("/admin/users/<int:user_id>/password-reset")
+def request_user_password_change(user_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    admin_user()
+    if not valid_csrf():
+        flash("A sua sessão expirou. Por favor, tente novamente.", "error")
+        return redirect(url_for("admin_menu"))
+    user = User.query.get_or_404(user_id)
+    if issue_password_reset(user, "alteração"):
+        flash(f"Ligação para alterar a palavra-passe enviada para {user.username}.", "success")
+    else:
+        flash("O email não foi enviado. Verifique a configuração SMTP e tente novamente.", "error")
+    return redirect(url_for("admin_menu"))
 
 
 @app.context_processor

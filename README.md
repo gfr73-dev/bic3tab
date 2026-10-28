@@ -2,7 +2,7 @@
 
 Flask application with two separate connections:
 
-- Local MySQL authenticates users from the `users` table. There is no public registration or password recovery. Users with `isAdmin=1` can create standard user accounts from the application.
+- Local MySQL authenticates users from the `users` table. Users with `isAdmin=1` can use the Admin menu to create accounts, choose admin and active status, activate or deactivate accounts, and email password setup/change links.
 - IBM i reads and updates use the existing ODBC DSN and configured service credentials.
 
 After a successful lookup, BICCPTCLI is displayed read-only and is never part of the IBM i `SET` clause. Successful IBM i updates are recorded in the MySQL `change_log` table with the original lookup values, saved values, the logged-in email, and a UTC timestamp.
@@ -16,7 +16,13 @@ mysql -u root -p < sql/001_create_database.sql
 mysql -u root -p < sql/002_create_tables.sql
 ```
 
-The `password_hash` field stores Werkzeug password hashes, never plaintext passwords. Admins can create standard accounts from the **Adicionar utilizador** option in the application. The `isAdmin` field defaults to `0`, and accounts created in the application cannot grant themselves admin access. The CLI is also available for initial account setup:
+For an existing installation, apply the user administration migration once:
+
+```sh
+mysql -u root -p < sql/003_user_admin_upgrade.sql
+```
+
+The `password_hash` field stores Werkzeug password hashes, never plaintext passwords. `isAdmin` defaults to `0` and `isActive` defaults to `1`. Admin-created accounts receive a single-use password setup link by email; password setup links expire after two hours. Admins can request another link from the user list. Inactive users cannot log in, and deactivation also ends their existing session on its next request. The CLI is available for initial account setup:
 
 ```sh
 python create_user.py
@@ -46,9 +52,26 @@ Waitress listens on `127.0.0.1:5800` by default. For access from other computers
 
 For HTTPS behind a trusted reverse proxy, set `FLASK_BEHIND_HTTPS=1`. Do not expose Flask's development server directly to a network; use a production WSGI server and terminate TLS at a trusted proxy. Set a persistent, secret `FLASK_SECRET_KEY`, since signed form snapshots and sessions depend on it.
 
+### SMTP email
+
+SMTP uses the same environment setting names and relay defaults as Jolie. Configure these values in bic3tab's local `.env` (do not commit credentials):
+
+```dotenv
+SMTP_ENABLED=true
+SMTP_HOST=dpd.relay.tmes.trendmicro.eu
+SMTP_PORT=25
+SMTP_TIMEOUT_SECONDS=10
+SMTP_USE_TLS=false
+SMTP_USER=
+SMTP_PASSWORD=
+MAIL_FROM=mail.dpdlrsls081@dpd.pt
+```
+
+Set `SMTP_USER` and `SMTP_PASSWORD` only if the relay requires authentication. Keep `SMTP_ENABLED=false` until the relay is configured; the app reports an email delivery failure in the Admin menu if sending is unavailable.
+
 ## Tables
 
-`users`: `id`, `name`, `username` (unique email), `password_hash`, `isAdmin` (boolean admin flag, default `0`). For an existing database, add the field once if it is missing: `ALTER TABLE users ADD COLUMN isAdmin TINYINT(1) NOT NULL DEFAULT 0;`. The table creation script includes the field for new installations.
+`users`: `id`, `name`, `username` (unique email), `password_hash`, `isAdmin` (boolean admin flag, default `0`), `isActive` (boolean, default `1`), and the hashed, expiring password-reset token fields. The table creation and upgrade scripts include these fields.
 
 To grant admin access to an existing account, run `UPDATE users SET isAdmin = 1 WHERE username = 'admin@example.com';` and replace the email with that account's username.
 
