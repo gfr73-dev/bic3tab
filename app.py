@@ -156,7 +156,7 @@ def decode_snapshot(payload, signature):
         )
     raw = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
     values = json.loads(raw)
-    if set(values) != set(ALL_FIELDS):
+    if set(values) != set(ROW_FIELDS):
         raise ValueError(
             "The original record snapshot is invalid. Search for the record again."
         )
@@ -187,170 +187,126 @@ def login():
     return render_template("login.html", csrf_token=csrf_token())
 
 
+DISPLAY_FIELDS = ("BICCPTCLI", "BICACT", "BICSNIF", "BICSCCC", "BICSPRACA", "BICSSERV", "BICSPROD", "SERVICE_RC")
+ROW_FIELDS = tuple(dict.fromkeys(ALL_FIELDS + DISPLAY_FIELDS))
+
+
+def load_matches(prefix):
+    with as400_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT {', '.join(ROW_FIELDS)} FROM {AS400_TABLE} WHERE BICCPTCLI LIKE ? AND SERVICE_RC = ? ORDER BY 1",
+            prefix + "%", "860",
+        )
+        names = [column[0].upper() for column in cursor.description]
+        found = []
+        for result in cursor.fetchall():
+            raw = dict(zip(names, result))
+            normalized = {field: ("" if raw.get(field) is None else str(raw[field]).strip()) for field in ROW_FIELDS}
+            found.append(normalized)
+    return found
+
+
 @app.route("/bic3tab", methods=["GET", "POST"])
 def bic3tab():
     if not session.get("user_id"):
         return redirect(url_for("login"))
-    values = {field: "" for field in FIELDS}
-    key = session.get("searched_key")
-    if request.method == "GET" and request.args.get("new_search") == "1":
-        session.pop("searched_key", None)
-        key = None
-    snapshot_payload = snapshot_signature = None
-    found = False
+    key = request.args.get("account") or session.get("searched_key")
     if request.method == "POST":
         if not valid_csrf():
             flash("Your form expired. Please try again.", "error")
         elif request.form.get("action") == "search":
-            entered = request.form.get("BICCPTCLI", "")
-            session.pop("searched_key", None)
-            if not re.fullmatch(r"\d{8}", entered):
-                flash("Conta deve conter exactamente 8 caracteres numéricos.", "error")
-                session.pop("searched_key", None)
+            entered = request.form.get("BICCPTCLI", "").strip()
+            if not re.fullmatch(r"[0-9]{6}", entered):
+                flash("A conta deve conter exactamente 6 dígitos numéricos.", "error")
+                key = None
             else:
+                key = entered
+                session["searched_key"] = key
                 try:
-                    with as400_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            f"SELECT {', '.join(ALL_FIELDS)} FROM {AS400_TABLE} WHERE BICCPTCLI = ?",
-                            entered,
-                        )
-                        row = cursor.fetchone()
-                        names = (
-                            [column[0].upper() for column in cursor.description]
-                            if cursor.description
-                            else []
-                        )
-                        original = dict(zip(names, row)) if row else None
-                    if original:
-                        original = {
-                            field: (
-                                ""
-                                if original[field] is None
-                                else str(original[field]).strip()
-                            )
-                            for field in ALL_FIELDS
-                        }
-                        key, found = entered, True
-                        session["searched_key"] = entered
-                        for field in FIELDS:
-                            values[field] = original[field]
-                        snapshot_payload, snapshot_signature = encode_snapshot(original)
-                        flash(
-                            "Registo carregado. Edite os dados e guarde as alterações.",
-                            "success",
-                        )
-                    else:
-                        session.pop("searched_key", None)
-                        key = None
-                        flash(
-                            "Nenhum registo encontrado para a conta especificada.",
-                            "error",
-                        )
+                    matches = load_matches(key)
+                    flash(f"Pesquisa concluída: {len(matches)} registo(s).", "success")
                 except Exception:
-                    app.logger.exception("IBM i falha ao ler o registo")
-                    flash(
-                        "O registo não pôde ser lido a partir do DSN configurado.",
-                        "error",
-                    )
+                    app.logger.exception("IBM i falha ao pesquisar registos")
+                    flash("Os registos não puderam ser lidos a partir do DSN configurado.", "error")
         elif request.form.get("action") == "update":
             key = session.get("searched_key")
             as400_updated = False
             try:
                 if not key:
-                    raise ValueError("Search for a record before saving.")
-                original = decode_snapshot(
-                    request.form.get("snapshot", ""),
-                    request.form.get("snapshot_signature", ""),
-                )
-                if original["BICCPTCLI"] != key:
-                    raise ValueError(
-                        "The original record snapshot does not match the searched key. Search again."
-                    )
-                values = {
-                    field: request.form.get(field, "").strip() for field in FIELDS
-                }
-                # BICVCLI is not editable in this form; preserve its searched value.
+                    raise ValueError("Pesquise os registos novamente antes de guardar.")
+                original = decode_snapshot(request.form.get("snapshot", ""), request.form.get("snapshot_signature", ""))
+                if not original["BICCPTCLI"].startswith(key) or original["SERVICE_RC"] != "860":
+                    raise ValueError("O registo não pertence à pesquisa. Pesquise novamente.")
+                values = {field: request.form.get(field, "").strip() for field in FIELDS}
                 values["BICVCLI"] = original["BICVCLI"]
+                values["SHEMAIL2DE"] = original["SHEMAIL2DE"]
                 valid_fields(values)
-                new_values = {"BICCPTCLI": key, **values}
+                new_values = {"BICCPTCLI": original["BICCPTCLI"], **values}
+                where_fields = ROW_FIELDS
                 with as400_connection() as conn:
                     cursor = conn.cursor()
                     assignments = ", ".join(f"{field} = ?" for field in FIELDS)
-                    params = (
-                        [int(original["BICVCLI"])]
-                        + [values[field] for field in FIELDS[1:]]
-                        + [key]
-                    )
-                    cursor.execute(
-                        f"UPDATE {AS400_TABLE} SET {assignments} WHERE BICCPTCLI = ?",
-                        params,
-                    )
-                    if cursor.rowcount == 0:
-                        raise ValueError(
-                            "No row was updated. The record may have been changed or removed."
-                        )
+                    where_parts, where_params = [], []
+                    for field in where_fields:
+                        if original[field] == "":
+                            where_parts.append(f"({field} = ? OR {field} IS NULL)")
+                            where_params.append("")
+                        else:
+                            where_parts.append(f"{field} = ?")
+                            where_params.append(original[field])
+                    params = [int(values["BICVCLI"])] + [values[field] for field in FIELDS[1:]] + where_params
+                    cursor.execute(f"UPDATE {AS400_TABLE} SET {assignments} WHERE {' AND '.join(where_parts)}", params)
+                    if cursor.rowcount != 1:
+                        raise ValueError("O registo mudou ou não pôde ser identificado de forma única. Pesquise novamente.")
                     conn.commit()
                     as400_updated = True
-                audit = ChangeLog(
-                    username=session["username"],
-                    changed_at=datetime.now(timezone.utc).replace(tzinfo=None),
-                )
+                audit = ChangeLog(username=session["username"], changed_at=datetime.now(timezone.utc).replace(tzinfo=None))
                 for field in ALL_FIELDS:
-                    setattr(
-                        audit,
-                        f"{field}_OLD",
-                        int(original[field]) if field == "BICVCLI" else original[field],
-                    )
-                    setattr(
-                        audit,
-                        f"{field}_NEW",
-                        (
-                            int(new_values[field])
-                            if field == "BICVCLI"
-                            else new_values[field]
-                        ),
-                    )
+                    setattr(audit, f"{field}_OLD", int(original[field]) if field == "BICVCLI" else original[field])
+                    setattr(audit, f"{field}_NEW", int(new_values[field]) if field == "BICVCLI" else new_values[field])
                 db.session.add(audit)
                 db.session.commit()
-                flash("Registo na BIC3TAB actualizado com sucesso.", "success")
-                session.pop("searched_key", None)
-                return redirect(url_for("bic3tab", new_search="1"))
+                flash("Registo actualizado com sucesso.", "success")
+                return redirect(url_for("bic3tab", account=key))
             except ValueError as exc:
                 db.session.rollback()
                 flash(str(exc), "error")
-                found = bool(key)
-                if key:
-                    snapshot_payload = request.form.get("snapshot")
-                    snapshot_signature = request.form.get("snapshot_signature")
             except Exception:
                 db.session.rollback()
                 app.logger.exception("IBM i record update or MySQL audit insert failed")
-                if as400_updated:
-                    flash(
-                        "IBM i was updated, but the audit entry could not be saved in MySQL. Contact your administrator.",
-                        "error",
-                    )
-                else:
-                    flash(
-                        "The record could not be updated. Check the values and connection settings.",
-                        "error",
-                    )
-                found = bool(key)
-                if key:
-                    snapshot_payload = request.form.get("snapshot")
-                    snapshot_signature = request.form.get("snapshot_signature")
+                flash("IBM i foi actualizado, mas ocorreu um erro ao guardar o histórico." if as400_updated else "O registo não pôde ser actualizado.", "error")
+    if key and re.fullmatch(r"[0-9]{6}", key):
+        session["searched_key"] = key
+        try:
+            matches = load_matches(key)
+        except Exception:
+            app.logger.exception("IBM i falha ao carregar resultados")
+            matches = []
     else:
-        key = session.get("searched_key")
-    return render_template(
-        "bic3tab.html",
-        csrf_token=csrf_token(),
-        values=values,
-        key=key,
-        found=found,
-        snapshot=snapshot_payload,
-        snapshot_signature=snapshot_signature,
-    )
+        matches = []
+    edit_index = request.args.get("edit", type=int)
+    rows = []
+    for i, record in enumerate(matches):
+        snapshot, signature = encode_snapshot(record)
+        rows.append({"display": record, "snapshot": snapshot, "signature": signature, "index": i, "editing": i == edit_index})
+    return render_template("bic3tab.html", csrf_token=csrf_token(), key=key, searched=bool(key), rows=rows)
+
+
+@app.get("/changes/<account>")
+def account_changes(account):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    if not re.fullmatch(r"[0-9]{6,8}", account):
+        abort(404)
+    changes = ChangeLog.query.filter(ChangeLog.BICCPTCLI_OLD.like(account + "%")).order_by(ChangeLog.changed_at.desc()).all()
+    key = session.get("searched_key")
+    try:
+        matches = load_matches(key) if key and re.fullmatch(r"[0-9]{6}", key) else []
+    except Exception:
+        matches = []
+    rows = [{"display": row, "index": i, "editing": False, "snapshot": "", "signature": ""} for i, row in enumerate(matches)]
+    return render_template("bic3tab.html", csrf_token=csrf_token(), key=key, searched=bool(key), rows=rows, changes=changes, changes_account=account)
 
 
 def valid_fields(values):

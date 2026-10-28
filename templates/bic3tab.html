@@ -4,177 +4,44 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>BIC3TAB · DPD</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='style.css') }}"
-    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
-        <div class="brand">
-          <div class="card-header d-flex align-items-center gap-4">
-            <img
-              src="./static/dpd_logo_50.png"
-              alt="Logo"
-              style="height: 48px; width: auto"
-            />
-          </div>
-        </div>
+        <div class="brand"><img src="{{ url_for('static', filename='dpd_logo_50.png') }}" alt="DPD" style="height:48px;width:auto" /></div>
         <div class="top-actions">
           {% if is_admin %}<a class="quiet" href="{{ url_for('add_user') }}">Adicionar utilizador</a>{% endif %}
-          <form method="post" action="{{ url_for('logout') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="quiet" type="submit">
-              Terminar sessão<span aria-hidden="true">↗</span>
-            </button>
-          </form>
+          <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="quiet" type="submit">Terminar sessão<span aria-hidden="true">↗</span></button></form>
         </div>
       </header>
-      <section class="intro">
-        <div>
-          <p class="eyebrow">IBM i · Pesquisa de registos</p>
-          <h2>Pesquisar registos</h2>
-        </div>
-        <span class="status"><i></i>Ligado</span>
-      </section>
-      {% with messages = get_flashed_messages(with_categories=true) %}{% for
-      category, message in messages %}
-      <div class="notice {{ category }}">{{ message }}</div>
-      {% endfor %}{% endwith %}
+      <section class="intro"><div><p class="eyebrow">IBM i · Pesquisa de registos</p><h2>Pesquisar registos</h2></div><span class="status"><i></i>Ligado</span></section>
+      {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
       <section class="panel search-panel">
-        <form
-          method="post"
-          action="{{ url_for('bic3tab') }}"
-          class="search-form"
-        >
-          <input
-            type="hidden"
-            name="csrf_token"
-            value="{{ csrf_token }}"
-          /><input type="hidden" name="action" value="search" />
-          <div class="key-input">
-            <label for="BICCPTCLI">Conta Cliente</label
-            ><input
-              id="BICCPTCLI"
-              name="BICCPTCLI"
-              value="{{ key or '' }}"
-              inputmode="numeric"
-              pattern="[0-9]{8}"
-              minlength="8"
-              maxlength="8"
-              placeholder="00000000"
-              required
-              {%
-              if
-              found
-              %}readonly
-              aria-readonly="true"
-              {%
-              endif
-              %}
-            />
-          </div>
-          <button class="primary" type="submit">
-            Pesquisar<span aria-hidden="true">⌕</span>
-          </button>
+        <form method="post" action="{{ url_for('bic3tab') }}" class="search-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="hidden" name="action" value="search" />
+          <div class="key-input"><label for="BICCPTCLI">Conta Cliente</label><input id="BICCPTCLI" name="BICCPTCLI" value="{{ key or '' }}" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" required /></div>
+          <button class="primary" type="submit">Pesquisar<span aria-hidden="true">⌕</span></button>
         </form>
-        <p class="hint">
-          Colocar os 8 digitos da conta. {% if found %}<a
-            href="{{ url_for('bic3tab') }}"
-            >Pesquisar outra conta</a
-          >{% endif %}
-        </p>
+        <p class="hint">Introduza os 6 dígitos da conta. A pesquisa procura contas iniciadas por esse valor com SERVICE_RC = 860.</p>
       </section>
-      {% if found and key %}
+      {% if searched %}
       <section class="panel record-panel">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Passo 2</p>
-            <h3>Detalhes do registo</h3>
-          </div>
-          <span class="tag editable">Campos editáveis</span>
-        </div>
-        <form method="post" action="{{ url_for('bic3tab') }}">
-          <input
-            type="hidden"
-            name="csrf_token"
-            value="{{ csrf_token }}"
-          /><input type="hidden" name="action" value="update" />
-          <input
-            type="hidden"
-            name="snapshot"
-            value="{{ snapshot or '' }}"
-          /><input
-            type="hidden"
-            name="snapshot_signature"
-            value="{{ snapshot_signature or '' }}"
-          />
-          <div class="field-grid">
-            <div class="field locked">
-              <label for="key-readonly"
-                >Conta DPD <span class="lock">🔒 só leitura</span></label
-              ><input
-                id="key-readonly"
-                value="{{ key }}"
-                readonly
-                aria-readonly="true"
-              />
-            </div>
-            <div class="field">
-              <label for="BICSNIF">NIF para associar</label
-              ><input
-                id="BICSNIF"
-                name="BICSNIF"
-                maxlength="9"
-                value="{{ values.BICSNIF }}"
-              />
-            </div>
-            <div class="field">
-              <label for="BICSCCC">CCC para associar</label
-              ><input
-                id="BICSCCC"
-                name="BICSCCC"
-                maxlength="11"
-                value="{{ values.BICSCCC }}"
-              />
-            </div>
-            <div class="field">
-              <label for="BICSPRACA">Praça para associar</label
-              ><input
-                id="BICSPRACA"
-                name="BICSPRACA"
-                maxlength="2"
-                value="{{ values.BICSPRACA }}"
-              />
-            </div>
-            <div class="field">
-              <label for="BICSSERV">Servico para associar</label
-              ><input
-                id="BICSSERV"
-                name="BICSSERV"
-                maxlength="3"
-                value="{{ values.BICSSERV }}"
-              />
-            </div>
-            <div class="field">
-              <label for="BICSPROD">Produto para associar</label
-              ><input
-                id="BICSPROD"
-                name="BICSPROD"
-                maxlength="3"
-                value="{{ values.BICSPROD }}"
-              />
-            </div>
-          </div>
-          <div class="form-footer">
-            <button class="primary" type="submit">
-              Gravar alterações <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </form>
-      </section>
-      {% endif %}
-      <footer>IBM i - Manutenção do registos<span>·</span> BIC3TAB</footer>
+        <div class="section-heading"><div><p class="eyebrow">Resultados</p><h3>{{ rows|length }} registo(s) encontrado(s)</h3></div></div>
+        <div class="table-wrap"><table class="results result-grid"><thead><tr><th>BICCPTCLI</th><th>BICACT</th><th>BICSNIF</th><th>BICSCCC</th><th>BICSPRACA</th><th>BICSSERV</th><th>BICSPROD</th><th>Ações</th></tr></thead>
+          <tbody>{% for row in rows %}<tr>
+            <td class="mono">{{ row.display.BICCPTCLI }}</td><td class="mono">{{ row.display.BICACT }}</td>
+            {% if row.editing %}
+            <td class="mono"><form id="edit-{{ row.index }}" method="post" action="{{ url_for('bic3tab') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"/><input type="hidden" name="action" value="update"/><input type="hidden" name="snapshot" value="{{ row.snapshot }}"/><input type="hidden" name="snapshot_signature" value="{{ row.signature }}"/></form><input form="edit-{{ row.index }}" name="BICSNIF" aria-label="BICSNIF" maxlength="9" value="{{ row.display.BICSNIF }}"/></td>
+            <td><input form="edit-{{ row.index }}" name="BICSCCC" aria-label="BICSCCC" maxlength="11" value="{{ row.display.BICSCCC }}"/></td><td><input form="edit-{{ row.index }}" name="BICSPRACA" aria-label="BICSPRACA" maxlength="2" value="{{ row.display.BICSPRACA }}"/></td><td><input form="edit-{{ row.index }}" name="BICSSERV" aria-label="BICSSERV" maxlength="3" value="{{ row.display.BICSSERV }}"/></td><td><input form="edit-{{ row.index }}" name="BICSPROD" aria-label="BICSPROD" maxlength="3" value="{{ row.display.BICSPROD }}"/></td>
+            <td class="actions"><button class="primary small" form="edit-{{ row.index }}" type="submit">Guardar</button><a class="quiet" href="{{ url_for('bic3tab', account=key) }}">Cancelar</a></td>
+            {% else %}<td class="mono">{{ row.display.BICSNIF }}</td><td class="mono">{{ row.display.BICSCCC }}</td><td class="mono">{{ row.display.BICSPRACA }}</td><td class="mono">{{ row.display.BICSSERV }}</td><td class="mono">{{ row.display.BICSPROD }}</td><td class="actions"><a class="quiet" href="{{ url_for('bic3tab', account=key, edit=row.index) }}">Editar</a><a class="quiet" href="{{ url_for('account_changes', account=row.display.BICCPTCLI) }}">Alterações</a></td>{% endif %}
+          </tr>{% else %}<tr><td colspan="8" class="empty">Nenhum registo encontrado.</td></tr>{% endfor %}</tbody></table></div>
+      </section>{% endif %}
+      <footer>IBM i - Manutenção de registos<span>·</span> BIC3TAB</footer>
     </main>
+    {% if changes is defined %}<div class="modal-backdrop" role="presentation"><section class="panel changes-modal" role="dialog" aria-modal="true" aria-labelledby="changes-title"><div class="section-heading"><div><p class="eyebrow">Histórico</p><h3 id="changes-title">Alterações da conta {{ changes_account }}</h3></div><a class="quiet" href="{{ url_for('bic3tab', account=key) }}">Fechar</a></div>
+      {% if changes %}<div class="table-wrap"><table class="results"><thead><tr><th>username</th><th>changed_at</th><th>BICSNIF_OLD</th><th>BICSCCC_OLD</th><th>BICSPRACA_OLD</th><th>BICSSERV_OLD</th><th>BICSPROD_OLD</th><th>BICSNIF_NEW</th><th>BICSCCC_NEW</th><th>BICSPRACA_NEW</th><th>BICSSERV_NEW</th><th>BICSPROD_NEW</th></tr></thead><tbody>{% for change in changes %}<tr><td>{{ change.username }}</td><td class="mono">{{ change.changed_at }}</td><td class="mono">{{ change.BICSNIF_OLD or '' }}</td><td class="mono">{{ change.BICSCCC_OLD or '' }}</td><td class="mono">{{ change.BICSPRACA_OLD or '' }}</td><td class="mono">{{ change.BICSSERV_OLD or '' }}</td><td class="mono">{{ change.BICSPROD_OLD or '' }}</td><td class="mono">{{ change.BICSNIF_NEW or '' }}</td><td class="mono">{{ change.BICSCCC_NEW or '' }}</td><td class="mono">{{ change.BICSPRACA_NEW or '' }}</td><td class="mono">{{ change.BICSSERV_NEW or '' }}</td><td class="mono">{{ change.BICSPROD_NEW or '' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="hint">Não existem alterações guardadas para esta conta.</p>{% endif %}
+    </section></div>{% endif %}
   </body>
 </html>
