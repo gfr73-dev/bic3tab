@@ -309,6 +309,7 @@ def reset_password(token):
 
 DISPLAY_FIELDS = ("BICCPTCLI", "BICACT", "BICSNIF", "BICSCCC", "BICSPRACA", "BICSSERV", "BICSPROD", "SERVICE_RC")
 ROW_FIELDS = tuple(dict.fromkeys(ALL_FIELDS + DISPLAY_FIELDS))
+BICSNIF_DEFAULT = "501964991"
 
 
 def load_matches(prefix):
@@ -410,7 +411,14 @@ def bic3tab():
     for i, record in enumerate(matches):
         snapshot, signature = encode_snapshot(record)
         rows.append({"display": record, "snapshot": snapshot, "signature": signature, "index": i, "editing": i == edit_index})
-    return render_template("bic3tab.html", csrf_token=csrf_token(), key=key, searched=bool(key), rows=rows)
+    return render_template(
+        "bic3tab.html",
+        csrf_token=csrf_token(),
+        key=key,
+        searched=bool(key),
+        rows=rows,
+        bicsnif_default=BICSNIF_DEFAULT,
+    )
 
 
 @app.get("/changes/<account>")
