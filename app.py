@@ -88,6 +88,14 @@ class User(db.Model):
     password_reset_expires_at = db.Column(db.DateTime, nullable=True)
 
 
+class ServiceDefault(db.Model):
+    __tablename__ = "service_defaults"
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    BICACT = db.Column(db.String(3), nullable=False, unique=True)
+    BICSSERV = db.Column(db.String(6), nullable=False)
+    BICSPROD = db.Column(db.String(6), nullable=False)
+
+
 class ChangeLog(db.Model):
     __tablename__ = "change_log"
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
@@ -104,16 +112,16 @@ class ChangeLog(db.Model):
     BICSNIF_OLD = db.Column(db.String(9), nullable=True)
     BICSCCC_OLD = db.Column(db.String(11), nullable=True)
     BICSPRACA_OLD = db.Column(db.String(2), nullable=True)
-    BICSSERV_OLD = db.Column(db.String(3), nullable=True)
-    BICSPROD_OLD = db.Column(db.String(3), nullable=True)
+    BICSSERV_OLD = db.Column(db.String(6), nullable=True)
+    BICSPROD_OLD = db.Column(db.String(6), nullable=True)
     BICCPTCLI_NEW = db.Column(db.String(8), nullable=False)
     BICVCLI_NEW = db.Column(db.Numeric(5, 0), nullable=False)
     SHEMAIL2DE_NEW = db.Column(db.String(1), nullable=True)
     BICSNIF_NEW = db.Column(db.String(9), nullable=True)
     BICSCCC_NEW = db.Column(db.String(11), nullable=True)
     BICSPRACA_NEW = db.Column(db.String(2), nullable=True)
-    BICSSERV_NEW = db.Column(db.String(3), nullable=True)
-    BICSPROD_NEW = db.Column(db.String(3), nullable=True)
+    BICSSERV_NEW = db.Column(db.String(6), nullable=True)
+    BICSPROD_NEW = db.Column(db.String(6), nullable=True)
 
 
 FIELDS = (
@@ -410,7 +418,15 @@ def bic3tab():
     rows = []
     for i, record in enumerate(matches):
         snapshot, signature = encode_snapshot(record)
-        rows.append({"display": record, "snapshot": snapshot, "signature": signature, "index": i, "editing": i == edit_index})
+        display_record = dict(record)
+        if i == edit_index:
+            service_default = ServiceDefault.query.filter_by(
+                BICACT=record["BICACT"]
+            ).first()
+            if service_default:
+                display_record["BICSSERV"] = service_default.BICSSERV
+                display_record["BICSPROD"] = service_default.BICSPROD
+        rows.append({"display": display_record, "snapshot": snapshot, "signature": signature, "index": i, "editing": i == edit_index})
     return render_template(
         "bic3tab.html",
         csrf_token=csrf_token(),
@@ -438,7 +454,7 @@ def account_changes(account):
 
 
 def valid_fields(values):
-    limits = {"BICSNIF": 9, "BICSCCC": 11, "BICSPRACA": 2, "BICSSERV": 3, "BICSPROD": 3}
+    limits = {"BICSNIF": 9, "BICSCCC": 11, "BICSPRACA": 2, "BICSSERV": 6, "BICSPROD": 6}
     for field, limit in limits.items():
         if len(values[field]) > limit:
             raise ValueError(f"{field} must be at most {limit} characters.")
@@ -460,6 +476,91 @@ def admin_menu():
     admin_user()
     users = User.query.order_by(User.name, User.username).all()
     return render_template("admin_users.html", users=users, csrf_token=csrf_token())
+
+
+@app.get("/admin/service-defaults")
+def admin_service_defaults():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    admin_user()
+    service_defaults = ServiceDefault.query.order_by(ServiceDefault.BICACT).all()
+    return render_template(
+        "admin_service_defaults.html",
+        service_defaults=service_defaults,
+        csrf_token=csrf_token(),
+    )
+
+
+def validate_service_default_form():
+    bicact = request.form.get("BICACT", "").strip()
+    bicsserv = request.form.get("BICSSERV", "").strip()
+    bicsprod = request.form.get("BICSPROD", "").strip()
+    if not bicact or len(bicact) > 3:
+        raise ValueError("BICACT é obrigatório e pode ter até 3 caracteres.")
+    if not bicsserv or len(bicsserv) > 6:
+        raise ValueError("BICSSERV é obrigatório e pode ter até 6 caracteres.")
+    if not bicsprod or len(bicsprod) > 6:
+        raise ValueError("BICSPROD é obrigatório e pode ter até 6 caracteres.")
+    return bicact, bicsserv, bicsprod
+
+
+@app.post("/admin/service-defaults")
+def add_service_default():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    admin_user()
+    if not valid_csrf():
+        flash("A sua sessão expirou. Por favor, tente novamente.", "error")
+        return redirect(url_for("admin_service_defaults"))
+    try:
+        bicact, bicsserv, bicsprod = validate_service_default_form()
+        if ServiceDefault.query.filter_by(BICACT=bicact).first():
+            raise ValueError("Já existe uma configuração para este BICACT.")
+        db.session.add(
+            ServiceDefault(BICACT=bicact, BICSSERV=bicsserv, BICSPROD=bicsprod)
+        )
+        db.session.commit()
+        flash("Configuração de serviço criada.", "success")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Failed to create service default")
+        flash("Não foi possível criar a configuração de serviço.", "error")
+    return redirect(url_for("admin_service_defaults"))
+
+
+@app.post("/admin/service-defaults/<int:default_id>")
+def update_service_default(default_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    admin_user()
+    if not valid_csrf():
+        flash("A sua sessão expirou. Por favor, tente novamente.", "error")
+        return redirect(url_for("admin_service_defaults"))
+    service_default = ServiceDefault.query.get_or_404(default_id)
+    try:
+        bicact, bicsserv, bicsprod = validate_service_default_form()
+        duplicate = ServiceDefault.query.filter(
+            ServiceDefault.BICACT == bicact,
+            ServiceDefault.id != service_default.id,
+        ).first()
+        if duplicate:
+            raise ValueError("Já existe uma configuração para este BICACT.")
+        service_default.BICACT = bicact
+        service_default.BICSSERV = bicsserv
+        service_default.BICSPROD = bicsprod
+        db.session.commit()
+        flash("Configuração de serviço atualizada.", "success")
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Failed to update service default %s", default_id)
+        flash("Não foi possível atualizar a configuração de serviço.", "error")
+    return redirect(url_for("admin_service_defaults"))
 
 
 @app.route("/admin/users/new", methods=["GET", "POST"])

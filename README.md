@@ -22,6 +22,13 @@ For an existing installation, apply the user administration migration once:
 mysql -u root -p < sql/003_user_admin_upgrade.sql
 ```
 
+For the `service_defaults` table and six-character service/product audit fields,
+also apply the new migration:
+
+```sh
+mysql -u root -p < sql/004_service_defaults.sql
+```
+
 The `password_hash` field stores Werkzeug password hashes, never plaintext passwords. `isAdmin` defaults to `0` and `isActive` defaults to `1`. Admin-created accounts receive a single-use password setup link by email; password setup links expire after two hours. Admins can request another link from the user list. Inactive users cannot log in, and deactivation also ends their existing session on its next request. The CLI is available for initial account setup:
 
 ```sh
@@ -72,6 +79,8 @@ Set `SMTP_USER` and `SMTP_PASSWORD` only if the relay requires authentication. K
 ## Tables
 
 `users`: `id`, `name`, `username` (unique email), `password_hash`, `isAdmin` (boolean admin flag, default `0`), `isActive` (boolean, default `1`), and the hashed, expiring password-reset token fields. The table creation and upgrade scripts include these fields.
+
+`service_defaults`: one row per `BICACT`, with six-character `BICSSERV` and `BICSPROD` values. Administrators maintain these values from the Admin menu; matching values prefill the record editor.
 
 To grant admin access to an existing account, run `UPDATE users SET isAdmin = 1 WHERE username = 'admin@example.com';` and replace the email with that account's username.
 

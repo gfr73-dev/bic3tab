@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Service defaults · BIC3TAB</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand brand-link" href="{{ url_for('bic3tab') }}"><img src="{{ url_for('static', filename='dpd_logo_50.png') }}" alt="DPD" style="height:48px;width:auto" /></a>
+        <div class="top-actions"><a class="quiet" href="{{ url_for('admin_menu') }}">Admin menu</a><a class="quiet" href="{{ url_for('bic3tab') }}">Voltar à pesquisa</a></div>
+      </header>
+      <section class="intro"><div><p class="eyebrow">ADMINISTRAÇÃO</p><h2>Service defaults</h2></div></section>
+      {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+      <section class="panel" style="margin-bottom:18px">
+        <div class="section-heading"><div><p class="eyebrow">NOVO REGISTO</p><h3>Adicionar configuração</h3></div></div>
+        <form method="post" action="{{ url_for('add_service_default') }}" class="admin-create-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <div class="field-grid">
+            <div class="field"><label for="new-BICACT">BICACT</label><input id="new-BICACT" name="BICACT" maxlength="3" required /></div>
+            <div class="field"><label for="new-BICSSERV">BICSSERV</label><input id="new-BICSSERV" name="BICSSERV" maxlength="6" required /></div>
+            <div class="field"><label for="new-BICSPROD">BICSPROD</label><input id="new-BICSPROD" name="BICSPROD" maxlength="6" required /></div>
+          </div>
+          <div class="form-footer"><p class="hint">These values will prefill BICSSERV and BICSPROD when editing a matching BICACT record.</p><button class="primary" type="submit">Adicionar <span aria-hidden="true">→</span></button></div>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="section-heading"><div><p class="eyebrow">CONFIGURAÇÕES</p><h3>{{ service_defaults|length }} registo(s)</h3></div></div>
+        <div class="table-wrap"><table class="results admin-users-table"><thead><tr><th>BICACT</th><th>BICSSERV</th><th>BICSPROD</th><th>Ações</th></tr></thead>
+          <tbody>{% for item in service_defaults %}<tr>
+            <td><input form="service-default-{{ item.id }}" name="BICACT" aria-label="BICACT" maxlength="3" value="{{ item.BICACT }}" required /></td>
+            <td><input form="service-default-{{ item.id }}" name="BICSSERV" aria-label="BICSSERV" maxlength="6" value="{{ item.BICSSERV }}" required /></td>
+            <td><input form="service-default-{{ item.id }}" name="BICSPROD" aria-label="BICSPROD" maxlength="6" value="{{ item.BICSPROD }}" required /></td>
+            <td class="actions"><form id="service-default-{{ item.id }}" method="post" action="{{ url_for('update_service_default', default_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button class="primary small" type="submit">Guardar alterações</button></form></td>
+          </tr>{% else %}<tr><td colspan="4" class="empty">Ainda não existem configurações.</td></tr>{% endfor %}</tbody>
+        </table></div>
+      </section>
+      <footer>Configuração por atividade<span>·</span>BIC3TAB</footer>
+    </main>
+  </body>
+</html>

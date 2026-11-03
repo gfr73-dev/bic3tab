@@ -10,7 +10,7 @@
     <main class="shell">
       <header class="topbar">
         <a class="brand brand-link" href="{{ url_for('bic3tab') }}"><img src="{{ url_for('static', filename='dpd_logo_50.png') }}" alt="DPD" style="height:48px;width:auto" /></a>
-        <div class="top-actions"><a class="quiet" href="{{ url_for('bic3tab') }}">Voltar à pesquisa</a></div>
+        <div class="top-actions"><a class="quiet" href="{{ url_for('admin_service_defaults') }}">Service defaults</a><a class="quiet" href="{{ url_for('bic3tab') }}">Voltar à pesquisa</a></div>
       </header>
       <section class="intro"><div><p class="eyebrow">ADMINISTRAÇÃO</p><h2>Admin menu</h2></div></section>
       {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="notice {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
