@@ -4,14 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Iniciar Sessão · BIC3TAB</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='style.css') }}"
-    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='dpd_favicon.ico') }}">
+  </head>
   <body>
     <main class="shell narrow">
       <header class="brand">
-        <div class="card-header d-flex align-items-center gap-4"><img src="./static/dpd_logo_50.png" alt="Logo" style="height: 48px; width: auto;"></div>
+        <div class="card-header d-flex align-items-center gap-4"><img src="{{ url_for('static', filename='dpd_logo_50.png') }}" alt="Logo" style="height: 48px; width: auto;"></div>
         <div>
           <p class="eyebrow">Dados de Cliente</p>
         </div>
